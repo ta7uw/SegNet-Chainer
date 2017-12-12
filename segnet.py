@@ -122,7 +122,7 @@ class SegNetBasic(chainer.Chain):
             C, H , W = imgs.shape
             with chainer.using_config("train", False), \
                  chainer.function.no_backprop_mode():
-                x = chainer.Variable(self.xp.ndarray(imgs[np.newaxis]))
+                x = chainer.Variable(self.xp.ndarray(img[np.newaxis]))
                 score = self.__call__(x)[0].data
             score = chainer.cuda.to_cpu(score)
             if score.shape != (C, W, H):
