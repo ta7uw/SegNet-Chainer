@@ -104,4 +104,32 @@ class SegNetBasic(chainer.Chain):
         score = self.conv_classifier(h)
         return score
 
+    def predict(self, imgs):
+        """
+        Conduct semantic segmentations from images.
+
+        :param imgs: iterable of numpy.ndarray:
+                    Arrays holding images.
+                    All images are CHW and RGB format
+                    and the range of their values are :math:"[0, 255]".
+
+        :return: list of numpy.ndarray:
+                    List of integer lables predicted from
+                    each image input list.
+        """
+        labels = list()
+        for img in imgs:
+            C, H , W = imgs.shape
+            with chainer.using_config("train", False), \
+                 chainer.function.no_backprop_mode():
+                x = chainer.Variable(self.xp.ndarray(imgs[np.newaxis]))
+                score = self.__call__(x)[0].data
+            score = chainer.cuda.to_cpu(score)
+            if score.shape != (C, W, H):
+                dtype = score.dtype
+                score = resize(score, (H, W)).astype(dtype)
+
+            label = np.argmax(score, axis=0).astype(np.int32)
+            labels.append(label)
+        return labels
 
