@@ -67,7 +67,17 @@ class SegNetBasic(chainer.Chain):
         elif pretrained_model:
             chainer.serializers.load_npz(pretrained_model, self)
 
-
+    def _upsampling_2d(self, x, pool):
+        if x.shape != pool.indexes.shape:
+            min_h = min(x.shape[2], pool.indexes.shape[2])
+            min_w = min(x.shape[3], pool.indexes.shape[3])
+            x = x[:, :, : min_h, :min_w]
+            pool.indexes = pool.indexes[:, :, :min_h, :min_w]
+        outsize = (x.shape[2] * 2, x.shape[3] * 2)
+        return F.upsampling_2d(
+            x, pool.indexes, ksize=(pool.kh, pool.kw),
+            stride=(pool.sy, pool.sx), pad=(pool.ph, pool.pw), outsize=outsize
+        )
 
 
 
