@@ -4,7 +4,8 @@ from collections import defaultdict
 import chainer
 
 from chainer.dataset import concat_examples
-from chainercv.datasets import camvid_label_colors, CamVidDataset
+from chainercv.datasets import camvid_label_names, CamVidDataset
+from chainercv.evaluations import eval_semantic_segmentation
 from chainercv.utils import apply_prediction_to_iterator
 
 from segnet import SegNetBasic
@@ -34,3 +35,54 @@ def calc_bn_statistics(model, batchsize):
             link.avg_var = bn_avg_var[name]/ n_iter
 
     return model
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--gpu", type=int, default=-1)
+    parser.add_argument("--pretrained_model", type=str, default="camvid")
+    parser.add_argument("-batchsize", type=int, default=24)
+    args = parser.parse_args()
+
+    model = SegNetBasic(
+        n_class=len(camvid_label_names),
+        pretrained_model=args.pretrained_model
+    )
+
+    if args.gpu >= 0:
+        chainer.cuda.get_device_from_id(args.gpu).use()
+        model.to_gpu()
+
+    model = calc_bn_statistics(model, args.batchsize)
+
+    test = CamVidDataset(split="test")
+    it = chainer.iterators.SerialIterator(
+        test, batch_size=args.batchsize, repeat=False, shuffle=False
+    )
+
+    imgs, pred_values, gt_values = apply_prediction_to_iterator(
+        model.predict, it
+    )
+
+    # Delete an iterator of iamges to save memory usage.
+    del imgs
+    pred_labels, = pred_values
+    gt_labels, = gt_values
+
+    result = eval_semantic_segmentation(pred_labels, gt_labels)
+
+    for iu, label_name in zip(result["iou"], camvid_label_names):
+        print("{:>23} : {:.4f}".format(label_name, iu))
+
+    print("=" * 34)
+    print("{:>23} : {:.4f}".format("mean IoU", result["miou"]))
+    print("{:>23} : {:.4f}".format(
+        "Class average accuracy", result["mean_calss_accuracy"]
+    ))
+    print("{:>23} : {:.4f}".format(
+        "Global average accuracy", result["pixe;_accuracy"]
+    ))
+
+
+if __name__ == '__main__':
+    main()
