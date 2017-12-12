@@ -47,7 +47,6 @@ class SegNetBasic(chainer.Chain):
             self.conv3_bn = L.BatchNormalization(64, initial_beta=0.001)
             self.conv4 = L.Convolution2D(64, 64, 7, 1, 3, nobias=True, initialW=initial_w)
             self.conv4_bn = L.BatchNormalization(64, initial_beta=0.001)
-
             self.conv_decode4 = L.Convolution2D(64, 64, 7, 1, 3, nobias=True, initialW=initial_w)
             self.conv_decode4_bn = L.BatchNormalization(64, initial_beta=0.001)
             self.conv_decode3 = L.Convolution2D(64, 64, 7, 1, 3, nobias=True, initialW=initial_w)
@@ -55,7 +54,7 @@ class SegNetBasic(chainer.Chain):
             self.conv_decode2 = L.Convolution2D(64, 64, 7, 1, 3, nobias=True, initialW=initial_w)
             self.conv_decode2_bn = L.BatchNormalization(64, initial_beta=0.001)
             self.conv_decode1 = L.Convolution2D(64, 64, 7, 1, 3, nobias=True, initialW=initial_w)
-            self.conv_decode_bn = L.BatchNormalization(64, initial_beta=0.001)
+            self.conv_decode1_bn = L.BatchNormalization(64, initial_beta=0.001)
             self.conv_classifier = L.Convolution2D(64, n_class, 1, 1, 0, initialW=initial_w)
 
         self.n_class = n_class
@@ -79,6 +78,30 @@ class SegNetBasic(chainer.Chain):
             stride=(pool.sy, pool.sx), pad=(pool.ph, pool.pw), outsize=outsize
         )
 
-
+    def __call__(self, x):
+        """
+        Compute as image-wise score from a batch of images
+        :param x: chainer.Variable: A variable with 40 image array.
+        :return: chainer.Variable: An image-wise score. Its channel size is "self.n_class".
+        """
+        p1 = F.MaxPooling2D(2, 2)
+        p2 = F.MaxPooling2D(2, 2)
+        p3 = F.MaxPooling2D(2, 2)
+        p4 = F.MaxPooling2D(2, 2)
+        h = F.local_response_normalization(x, 5, 1, 1e-4 / 5.0, 0.75)
+        h = _pool_without_cudnn(p1, F.relu(self.conv1_bn(self.conv1(h))))
+        h = _pool_without_cudnn(p2, F.relu(self.conv2_bn(self.conv2(h))))
+        h = _pool_without_cudnn(p3, F.relu(self.conv3_bn(self.conv3(h))))
+        h = _pool_without_cudnn(p4, F.relu(self.conv4_bn(self.conv4(h))))
+        h = self._upsampling_2d(h, p4)
+        h = self.conv_decode4_bn(self.conv_decode4(h))
+        h = self._upsampling_2d(h, p3)
+        h = self.conv_decode3_bn(self.conv_decode3(h))
+        h = self._upsampling_2d(h, p2)
+        h = self.conv_decode2_bn(self.conv_decode2(h))
+        h = self._upsampling_2d(h, p1)
+        h = self.conv_decode1_bn(self.conv_decode1(h))
+        score = self.conv_classifier(h)
+        return score
 
 
