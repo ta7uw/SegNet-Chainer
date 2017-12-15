@@ -119,9 +119,9 @@ class SegNetBasic(chainer.Chain):
         """
         labels = list()
         for img in imgs:
-            C, H , W = imgs.shape
+            C, H, W = img.shape
             with chainer.using_config("train", False), \
-                 chainer.function.no_backprop_mode():
+                    chainer.function.no_backprop_mode():
                 x = chainer.Variable(self.xp.ndarray(img[np.newaxis]))
                 score = self.__call__(x)[0].data
             score = chainer.cuda.to_cpu(score)
